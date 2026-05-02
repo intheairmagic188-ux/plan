@@ -1,7 +1,7 @@
 import time
 import psycopg2
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import requests
 import pytz
@@ -67,13 +67,14 @@ while True:
             print(f"\n➡️ Task ID {task_id} → {subject} | {topic}")
             print("   Raw deadline:", deadline)
 
-            # timezone handling
+            # ✅ FIXED timezone handling (UTC → IST)
             if deadline.tzinfo is None:
-                deadline = IST.localize(deadline)
-            else:
-                deadline = deadline.astimezone(IST)
+                deadline = deadline.replace(tzinfo=timezone.utc)
 
-            print("   Converted deadline:", deadline)
+            deadline = deadline.astimezone(IST)
+
+            print("   Converted deadline (IST):", deadline)
+            print("   Time diff:", deadline - now)
 
             # CONDITION: deadline passed
             if deadline <= now:
@@ -82,7 +83,7 @@ while True:
                 send_telegram(subject, topic)
 
                 new_deadline = deadline + timedelta(hours=1.5)
-                print("🔄 New deadline:", new_deadline)
+                print("🔄 New deadline (IST):", new_deadline)
 
                 # CONDITION: crosses next day
                 if new_deadline.date() > deadline.date():
@@ -90,9 +91,13 @@ while True:
                     cur.execute("DELETE FROM tasks WHERE id = %s;", (task_id,))
                 else:
                     print("✏️ Updating deadline")
+
+                    # store back in UTC
+                    new_deadline_utc = new_deadline.astimezone(timezone.utc)
+
                     cur.execute(
                         "UPDATE tasks SET deadline = %s WHERE id = %s;",
-                        (new_deadline, task_id)
+                        (new_deadline_utc, task_id)
                     )
             else:
                 print("✅ Not due yet")
