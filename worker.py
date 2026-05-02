@@ -1,7 +1,7 @@
 import time
 import psycopg2
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import requests
 import pytz
@@ -58,6 +58,7 @@ while True:
         tasks = cur.fetchall()
         print(f"📊 Total tasks fetched: {len(tasks)}")
 
+        # ✅ current IST time
         now = datetime.now(IST)
         print("🕒 Current IST time:", now)
 
@@ -67,13 +68,11 @@ while True:
             print(f"\n➡️ Task ID {task_id} → {subject} | {topic}")
             print("   Raw deadline:", deadline)
 
-            # ✅ FIXED timezone handling (UTC → IST)
+            # ✅ Treat DB time as IST directly
             if deadline.tzinfo is None:
-                deadline = deadline.replace(tzinfo=timezone.utc)
+                deadline = IST.localize(deadline)
 
-            deadline = deadline.astimezone(IST)
-
-            print("   Converted deadline (IST):", deadline)
+            print("   Deadline (IST):", deadline)
             print("   Time diff:", deadline - now)
 
             # CONDITION: deadline passed
@@ -92,12 +91,10 @@ while True:
                 else:
                     print("✏️ Updating deadline")
 
-                    # store back in UTC
-                    new_deadline_utc = new_deadline.astimezone(timezone.utc)
-
+                    # store directly in IST (no conversion)
                     cur.execute(
                         "UPDATE tasks SET deadline = %s WHERE id = %s;",
-                        (new_deadline_utc, task_id)
+                        (new_deadline.replace(tzinfo=None), task_id)
                     )
             else:
                 print("✅ Not due yet")
